@@ -21,7 +21,7 @@
     <section class="intro">
       <p class="eyebrow">A simple video maker</p>
       <h1>Photos in.<br><span>Story in motion.</span></h1>
-      <p>Arrange your pictures, add a sound, and make a vertical video with a gentle zoom.</p>
+      <p>Arrange your pictures, add captions and a story hook, then make a vertical video with a gentle zoom.</p>
     </section>
 
     <section class="workspace" aria-label="Video editor">
@@ -41,7 +41,7 @@
         <input id="photo-files" type="file" accept="image/*" multiple>
 
         <ol id="photo-list" class="photo-list" aria-label="Photos in video"></ol>
-        <p id="empty-photos" class="empty-note">Your photos will appear here. Use the arrows to change their order.</p>
+        <p id="empty-photos" class="empty-note">Your photos will appear here. Use the arrows to change their order, then add a caption and timing to each one.</p>
 
         <div class="sound-block">
           <div class="sound-heading">
@@ -57,6 +57,10 @@
             <span>Sound volume</span><output id="volume-value" for="volume">70%</output>
           </label>
           <input id="volume" class="range" type="range" min="0" max="100" value="70">
+          <label class="toggle-label" for="audio-fade">
+            <input id="audio-fade" type="checkbox" checked>
+            <span>Fade sound in and out</span>
+          </label>
         </div>
       </div>
 
@@ -83,19 +87,30 @@
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Step 3</p>
-              <h2 id="settings-title">Set the motion</h2>
+              <h2 id="settings-title">Shape your story</h2>
             </div>
           </div>
+          <div class="story-fields">
+            <label for="opening-hook">Opening hook <span>Shows at the start</span></label>
+            <input id="opening-hook" class="text-input" type="text" maxlength="100" placeholder="e.g. Nobody believed what the camera caught">
+            <label for="closing-cta">Closing line <span>Shows at the end</span></label>
+            <input id="closing-cta" class="text-input" type="text" maxlength="100" placeholder="e.g. Would you have opened the door?">
+          </div>
           <label class="range-label" for="seconds">
-            <span>Seconds per photo</span><output id="seconds-value" for="seconds">4 sec</output>
+            <span>Set time for all photos</span><output id="seconds-value" for="seconds">4 sec</output>
           </label>
           <input id="seconds" class="range" type="range" min="2" max="10" value="4">
+          <p class="control-note">You can fine-tune each photo's timing in its card.</p>
           <label class="range-label" for="zoom">
             <span>Slow zoom</span><output id="zoom-value" for="zoom">8%</output>
           </label>
           <input id="zoom" class="range" type="range" min="0" max="20" value="8">
+          <label class="toggle-label" for="crossfade">
+            <input id="crossfade" type="checkbox" checked>
+            <span>Smooth crossfade between photos</span>
+          </label>
           <button id="make-video" class="make-button" type="button" disabled>Make my video</button>
-          <p class="format-note">The video is created on your device. It downloads in a format your browser can create, usually WebM. YouTube accepts WebM and MP4.</p>
+          <p class="format-note">The video is created on your device with your text, slow zoom, and transitions. It downloads in a format your browser can create, usually WebM. YouTube accepts WebM and MP4.</p>
           <p id="status" class="status" role="status" aria-live="polite">Add at least one photo to begin.</p>
         </section>
       </div>

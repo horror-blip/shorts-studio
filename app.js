@@ -10,6 +10,10 @@ const placeholder = document.querySelector("#preview-placeholder");
 const secondsInput = document.querySelector("#seconds");
 const zoomInput = document.querySelector("#zoom");
 const volumeInput = document.querySelector("#volume");
+const audioFadeInput = document.querySelector("#audio-fade");
+const crossfadeInput = document.querySelector("#crossfade");
+const openingHookInput = document.querySelector("#opening-hook");
+const closingCtaInput = document.querySelector("#closing-cta");
 const secondsValue = document.querySelector("#seconds-value");
 const zoomValue = document.querySelector("#zoom-value");
 const volumeValue = document.querySelector("#volume-value");
@@ -22,16 +26,21 @@ let sound = null;
 let soundUrl = null;
 let exportInProgress = false;
 
+function photoSeconds(photo) {
+  return Number(photo.duration) || Number(secondsInput.value);
+}
+
 function videoDuration() {
-  return photos.length * Number(secondsInput.value);
+  return photos.reduce((total, photo) => total + photoSeconds(photo), 0);
 }
 
 function updateSettings() {
   secondsValue.value = `${secondsInput.value} sec`;
   zoomValue.value = `${zoomInput.value}%`;
   volumeValue.value = `${volumeInput.value}%`;
+  const displayedDuration = Number(videoDuration().toFixed(1));
   durationLabel.textContent = photos.length
-    ? `About ${videoDuration()} seconds · ${photos.length} photo${photos.length === 1 ? "" : "s"}`
+    ? `About ${displayedDuration} seconds · ${photos.length} photo${photos.length === 1 ? "" : "s"}`
     : "Add photos to see video length";
   makeButton.disabled = photos.length === 0 || exportInProgress;
   photoInput.disabled = exportInProgress;
@@ -39,14 +48,85 @@ function updateSettings() {
   secondsInput.disabled = exportInProgress;
   zoomInput.disabled = exportInProgress;
   volumeInput.disabled = exportInProgress;
+  audioFadeInput.disabled = exportInProgress;
+  crossfadeInput.disabled = exportInProgress;
+  openingHookInput.disabled = exportInProgress;
+  closingCtaInput.disabled = exportInProgress;
 }
 
-function paintCover(image, zoom) {
+function drawCover(image, zoom, opacity = 1) {
   const scale = Math.max(canvas.width / image.width, canvas.height / image.height) * zoom;
   const width = image.width * scale;
   const height = image.height * scale;
-  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.save();
+  context.globalAlpha = opacity;
   context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+  context.restore();
+}
+
+function paintCover(image, zoom) {
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  drawCover(image, zoom);
+}
+
+function wrapText(text, maxWidth, maxLines) {
+  const words = text.trim().split(/\s+/);
+  const lines = [];
+  let line = "";
+  let wordIndex = 0;
+
+  for (; wordIndex < words.length; wordIndex += 1) {
+    const candidate = line ? `${line} ${words[wordIndex]}` : words[wordIndex];
+    if (context.measureText(candidate).width > maxWidth && line) {
+      lines.push(line);
+      line = words[wordIndex];
+      if (lines.length === maxLines - 1) {
+        wordIndex += 1;
+        break;
+      }
+    } else {
+      line = candidate;
+    }
+  }
+
+  if (line && lines.length < maxLines) lines.push(line);
+  if (wordIndex < words.length && lines.length) {
+    let lastLine = `${lines[lines.length - 1]}…`;
+    while (context.measureText(lastLine).width > maxWidth && lastLine.length > 1) {
+      lastLine = `${lastLine.slice(0, -2)}…`;
+    }
+    lines[lines.length - 1] = lastLine;
+  }
+  return lines;
+}
+
+function drawTextCard(text, centerY, fontSize) {
+  const trimmedText = text.trim();
+  if (!trimmedText) return;
+
+  context.save();
+  context.font = `700 ${fontSize}px "Segoe UI", Arial, sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  const maxTextWidth = canvas.width - 100;
+  const lines = wrapText(trimmedText, maxTextWidth, 3);
+  const lineHeight = fontSize * 1.25;
+  const padding = 18;
+  const textWidth = Math.max(...lines.map(line => context.measureText(line).width));
+  const boxWidth = Math.min(canvas.width - 48, textWidth + padding * 2);
+  const boxHeight = lines.length * lineHeight + padding * 2;
+  const left = (canvas.width - boxWidth) / 2;
+  const top = Math.max(32, Math.min(canvas.height - boxHeight - 80, centerY - boxHeight / 2));
+
+  context.fillStyle = "rgba(0, 0, 0, 0.76)";
+  context.fillRect(left, top, boxWidth, boxHeight);
+  context.fillStyle = "#bd1728";
+  context.fillRect(left, top, boxWidth, 5);
+  context.fillStyle = "#ffffff";
+  lines.forEach((line, index) => {
+    context.fillText(line, canvas.width / 2, top + padding + lineHeight * (index + 0.5), maxTextWidth);
+  });
+  context.restore();
 }
 
 function updatePreview() {
@@ -56,6 +136,8 @@ function updatePreview() {
     return;
   }
   paintCover(photos[0].image, 1 + Number(zoomInput.value) / 100);
+  drawTextCard(openingHookInput.value, 350, 44);
+  drawTextCard(photos[0].caption, 930, 38);
 }
 
 function renderPhotos() {
@@ -72,6 +154,45 @@ function renderPhotos() {
     name.className = "photo-name";
     name.textContent = photo.file.name;
     name.title = photo.file.name;
+
+    const caption = document.createElement("input");
+    caption.className = "photo-caption";
+    caption.type = "text";
+    caption.maxLength = 100;
+    caption.placeholder = "Caption for this photo (optional)";
+    caption.value = photo.caption;
+    caption.setAttribute("aria-label", `Caption for ${photo.file.name}`);
+    caption.disabled = exportInProgress;
+    caption.addEventListener("input", () => {
+      photo.caption = caption.value;
+      updatePreview();
+    });
+
+    const durationControl = document.createElement("label");
+    durationControl.className = "photo-duration-control";
+    const durationText = document.createElement("span");
+    durationText.textContent = "Seconds on screen";
+    const duration = document.createElement("input");
+    duration.type = "number";
+    duration.min = "2";
+    duration.max = "10";
+    duration.step = "0.1";
+    duration.value = String(photoSeconds(photo));
+    duration.setAttribute("aria-label", `Seconds on screen for ${photo.file.name}`);
+    duration.disabled = exportInProgress;
+    duration.addEventListener("input", () => {
+      const value = Number(duration.value);
+      if (!Number.isFinite(value) || value < 2 || value > 10) return;
+      photo.duration = value;
+      updateSettings();
+    });
+    duration.addEventListener("change", () => {
+      const value = duration.value === "" ? Number(secondsInput.value) : Number(duration.value);
+      photo.duration = Number.isFinite(value) ? Math.min(10, Math.max(2, value)) : Number(secondsInput.value);
+      duration.value = String(photo.duration);
+      updateSettings();
+    });
+    durationControl.append(durationText, duration);
 
     const up = document.createElement("button");
     up.className = "small-button";
@@ -97,7 +218,7 @@ function renderPhotos() {
     remove.disabled = exportInProgress;
     remove.addEventListener("click", () => removePhoto(index));
 
-    item.append(thumbnail, name, up, down, remove);
+    item.append(thumbnail, name, up, down, remove, caption, durationControl);
     photoList.append(item);
   });
 
@@ -133,7 +254,7 @@ photoInput.addEventListener("change", async () => {
     image.src = url;
     try {
       await image.decode();
-      photos.push({ file, image, url });
+      photos.push({ file, image, url, caption: "", duration: Number(secondsInput.value) });
     } catch (error) {
       URL.revokeObjectURL(url);
       failedCount += 1;
@@ -165,11 +286,22 @@ soundInput.addEventListener("change", () => {
   status.textContent = "Sound is ready. It will loop if it is shorter than your video.";
 });
 
-for (const input of [secondsInput, zoomInput, volumeInput]) {
+secondsInput.addEventListener("input", () => {
+  photos.forEach(photo => {
+    photo.duration = Number(secondsInput.value);
+  });
+  renderPhotos();
+});
+
+for (const input of [zoomInput, volumeInput]) {
   input.addEventListener("input", () => {
     updateSettings();
     updatePreview();
   });
+}
+
+for (const input of [openingHookInput, closingCtaInput]) {
+  input.addEventListener("input", updatePreview);
 }
 
 function supportedMimeType() {
@@ -208,6 +340,7 @@ async function makeVideo() {
 
   let audioContext = null;
   let audioElement = null;
+  let audioGain = null;
   let stream = null;
   let animationFrame = 0;
 
@@ -215,16 +348,22 @@ async function makeVideo() {
     const mimeType = supportedMimeType();
     if (!mimeType) throw new Error("This browser does not support a video format this editor can export.");
 
-    const exportPhotos = photos.slice();
-    const secondsPerPhoto = Number(secondsInput.value) * 1000;
-    const durationMs = exportPhotos.length * secondsPerPhoto;
+    const exportPhotos = photos.map(photo => ({ ...photo, durationMs: photoSeconds(photo) * 1000 }));
+    const photoStarts = [];
+    let durationMs = 0;
+    exportPhotos.forEach(photo => {
+      photoStarts.push(durationMs);
+      durationMs += photo.durationMs;
+    });
     stream = canvas.captureStream(30);
     if (soundUrl) {
       audioContext = new AudioContext();
       await audioContext.resume();
       const destination = audioContext.createMediaStreamDestination();
       const gain = audioContext.createGain();
-      gain.gain.value = Number(volumeInput.value) / 100;
+      audioGain = gain;
+      const targetGain = Number(volumeInput.value) / 100;
+      gain.gain.value = audioFadeInput.checked ? 0 : targetGain;
       audioElement = new Audio(soundUrl);
       audioElement.loop = true;
       const source = audioContext.createMediaElementSource(audioElement);
@@ -259,17 +398,48 @@ async function makeVideo() {
 
     recorder.start(250);
     const startTime = performance.now();
+    if (audioContext && audioGain && audioFadeInput.checked) {
+      const audioStart = audioContext.currentTime;
+      const fadeSeconds = Math.min(1, durationMs / 3000);
+      const targetGain = Number(volumeInput.value) / 100;
+      audioGain.gain.cancelScheduledValues(audioStart);
+      audioGain.gain.setValueAtTime(0, audioStart);
+      audioGain.gain.linearRampToValueAtTime(targetGain, audioStart + fadeSeconds);
+      audioGain.gain.setValueAtTime(targetGain, audioStart + durationMs / 1000 - fadeSeconds);
+      audioGain.gain.linearRampToValueAtTime(0, audioStart + durationMs / 1000);
+    }
     const zoomFactor = 1 + Number(zoomInput.value) / 100;
 
     function renderFrame(now) {
       try {
         const elapsed = Math.max(0, Math.min(now - startTime, durationMs));
-        const photoIndex = Math.max(0, Math.min(Math.floor(elapsed / secondsPerPhoto), exportPhotos.length - 1));
+        let photoIndex = photoStarts.findIndex((photoStart, index) => elapsed < photoStart + exportPhotos[index].durationMs);
+        if (photoIndex < 0) photoIndex = exportPhotos.length - 1;
         const photo = exportPhotos[photoIndex];
         if (!photo) throw new Error("A photo was unavailable while rendering. Please reload your photos and try again.");
-        const photoProgress = (elapsed - photoIndex * secondsPerPhoto) / secondsPerPhoto;
-        const scale = 1 + (zoomFactor - 1) * Math.max(0, Math.min(photoProgress, 1));
-        paintCover(photo.image, scale);
+        const photoElapsed = elapsed - photoStarts[photoIndex];
+        const photoProgress = Math.max(0, Math.min(photoElapsed / photo.durationMs, 1));
+        const scale = 1 + (zoomFactor - 1) * photoProgress;
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        drawCover(photo.image, scale);
+
+        const nextPhoto = exportPhotos[photoIndex + 1];
+        const transitionMs = nextPhoto ? Math.min(450, photo.durationMs / 4, nextPhoto.durationMs / 4) : 0;
+        if (crossfadeInput.checked && nextPhoto && transitionMs > 0) {
+          const transitionStart = photo.durationMs - transitionMs;
+          if (photoElapsed > transitionStart) {
+            const transitionProgress = (photoElapsed - transitionStart) / transitionMs;
+            drawCover(nextPhoto.image, 1 + (zoomFactor - 1) * transitionProgress, transitionProgress);
+          }
+        }
+
+        const hookWindow = Math.min(1800, durationMs / 3);
+        const closingWindow = Math.min(1800, durationMs / 3);
+        if (photoIndex === 0 && elapsed < hookWindow) drawTextCard(openingHookInput.value, 350, 44);
+        if (photo.caption) drawTextCard(photo.caption, 930, 38);
+        if (photoIndex === exportPhotos.length - 1 && elapsed >= durationMs - closingWindow) {
+          drawTextCard(closingCtaInput.value, 1080, 36);
+        }
       } catch (error) {
         renderError = error instanceof Error ? error : new Error("Video rendering failed.");
         recorder.stop();
