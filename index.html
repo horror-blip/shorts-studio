@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111111">
+  <meta name="description" content="Make a vertical slow-zoom video from your photos and sound.">
+  <title>Shorts Studio — HORROR</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="wordmark" href="https://horror-blip.github.io/" aria-label="HORROR home">
+      <span class="mark" aria-hidden="true"></span>HORROR <span class="studio">SHORTS STUDIO</span>
+    </a>
+    <span class="privacy"><span aria-hidden="true"></span> FILES STAY ON YOUR DEVICE</span>
+  </header>
+
+  <main>
+    <section class="intro">
+      <p class="eyebrow">A simple video maker</p>
+      <h1>Photos in.<br><span>Story in motion.</span></h1>
+      <p>Arrange your pictures, add a sound, and make a vertical video with a gentle zoom.</p>
+    </section>
+
+    <section class="workspace" aria-label="Video editor">
+      <div class="assets panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Step 1</p>
+            <h2>Add your media</h2>
+          </div>
+          <span id="photo-count" class="count">0 photos</span>
+        </div>
+
+        <label class="upload-box" for="photo-files">
+          <span class="upload-plus" aria-hidden="true">+</span>
+          <span><strong>Choose photos</strong><small>Select multiple images from your device</small></span>
+        </label>
+        <input id="photo-files" type="file" accept="image/*" multiple>
+
+        <ol id="photo-list" class="photo-list" aria-label="Photos in video"></ol>
+        <p id="empty-photos" class="empty-note">Your photos will appear here. Use the arrows to change their order.</p>
+
+        <div class="sound-block">
+          <div class="sound-heading">
+            <div>
+              <p class="eyebrow">Optional</p>
+              <h3>Add a sound</h3>
+            </div>
+            <label class="sound-upload" for="sound-file">Choose audio</label>
+          </div>
+          <input id="sound-file" type="file" accept="audio/*">
+          <p id="sound-name" class="sound-name">No sound selected</p>
+          <label class="range-label" for="volume">
+            <span>Sound volume</span><output id="volume-value" for="volume">70%</output>
+          </label>
+          <input id="volume" class="range" type="range" min="0" max="100" value="70">
+        </div>
+      </div>
+
+      <div class="preview-column">
+        <section class="preview panel" aria-labelledby="preview-title">
+          <div class="panel-heading preview-heading">
+            <div>
+              <p class="eyebrow">Step 2</p>
+              <h2 id="preview-title">Your video</h2>
+            </div>
+            <span class="format-tag">VERTICAL · 9:16</span>
+          </div>
+          <div class="preview-frame">
+            <canvas id="video-canvas" width="720" height="1280" aria-label="Video preview"></canvas>
+            <div id="preview-placeholder" class="preview-placeholder">
+              <span class="placeholder-mark" aria-hidden="true"></span>
+              <p>Add a photo<br>to see a preview</p>
+            </div>
+          </div>
+          <p id="duration" class="duration">Add photos to see video length</p>
+        </section>
+
+        <section class="settings panel" aria-labelledby="settings-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Step 3</p>
+              <h2 id="settings-title">Set the motion</h2>
+            </div>
+          </div>
+          <label class="range-label" for="seconds">
+            <span>Seconds per photo</span><output id="seconds-value" for="seconds">4 sec</output>
+          </label>
+          <input id="seconds" class="range" type="range" min="2" max="10" value="4">
+          <label class="range-label" for="zoom">
+            <span>Slow zoom</span><output id="zoom-value" for="zoom">8%</output>
+          </label>
+          <input id="zoom" class="range" type="range" min="0" max="20" value="8">
+          <button id="make-video" class="make-button" type="button" disabled>Make my video</button>
+          <p class="format-note">The video is created on your device. It downloads in a format your browser can create, usually WebM. YouTube accepts WebM and MP4.</p>
+          <p id="status" class="status" role="status" aria-live="polite">Add at least one photo to begin.</p>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>SHORTS STUDIO</span>
+    <span>Your photos and sound are not sent to a server.</span>
+  </footer>
+</body>
+</html>
