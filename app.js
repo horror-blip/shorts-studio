@@ -14,37 +14,52 @@ const audioFadeInput = document.querySelector("#audio-fade");
 const crossfadeInput = document.querySelector("#crossfade");
 const openingHookInput = document.querySelector("#opening-hook");
 const closingCtaInput = document.querySelector("#closing-cta");
+const platformInput = document.querySelector("#platform");
 const secondsValue = document.querySelector("#seconds-value");
 const zoomValue = document.querySelector("#zoom-value");
 const volumeValue = document.querySelector("#volume-value");
 const durationLabel = document.querySelector("#duration");
+const generateDraftsButton = document.querySelector("#generate-drafts");
+const draftsPanel = document.querySelector("#story-drafts");
+const draftList = document.querySelector("#draft-list");
 const makeButton = document.querySelector("#make-video");
 const status = document.querySelector("#status");
 
 let photos = [];
 let sound = null;
 let soundUrl = null;
+let drafts = [];
+let selectedDraft = null;
 let exportInProgress = false;
 
 function photoSeconds(photo) {
   return Number(photo.duration) || Number(secondsInput.value);
 }
 
-function videoDuration() {
-  return photos.reduce((total, photo) => total + photoSeconds(photo), 0);
+function activePhotos() {
+  return selectedDraft ? selectedDraft.photos : photos;
+}
+
+function videoDuration(photoSet = activePhotos()) {
+  return photoSet.reduce((total, photo) => total + photoSeconds(photo), 0);
 }
 
 function updateSettings() {
   secondsValue.value = `${secondsInput.value} sec`;
   zoomValue.value = `${zoomInput.value}%`;
   volumeValue.value = `${volumeInput.value}%`;
-  const displayedDuration = Number(videoDuration().toFixed(1));
-  durationLabel.textContent = photos.length
-    ? `About ${displayedDuration} seconds · ${photos.length} photo${photos.length === 1 ? "" : "s"}`
+  const currentPhotos = activePhotos();
+  const displayedDuration = Number(videoDuration(currentPhotos).toFixed(1));
+  durationLabel.textContent = currentPhotos.length
+    ? `${selectedDraft ? `${selectedDraft.title} · ` : ""}About ${displayedDuration} seconds · ${currentPhotos.length} photo${currentPhotos.length === 1 ? "" : "s"}`
     : "Add photos to see video length";
-  makeButton.disabled = photos.length === 0 || exportInProgress;
+  makeButton.disabled = currentPhotos.length === 0 || exportInProgress;
+  makeButton.textContent = selectedDraft ? "Make selected draft" : "Make my video";
+  generateDraftsButton.disabled = photos.length < 3 || exportInProgress;
+  generateDraftsButton.textContent = drafts.length ? "Regenerate 3 story drafts" : "Generate 3 story drafts";
   photoInput.disabled = exportInProgress;
   soundInput.disabled = exportInProgress;
+  platformInput.disabled = exportInProgress;
   secondsInput.disabled = exportInProgress;
   zoomInput.disabled = exportInProgress;
   volumeInput.disabled = exportInProgress;
@@ -129,15 +144,137 @@ function drawTextCard(text, centerY, fontSize) {
   context.restore();
 }
 
+function clearDrafts() {
+  drafts = [];
+  selectedDraft = null;
+  draftList.replaceChildren();
+  draftsPanel.hidden = true;
+}
+
 function updatePreview() {
-  placeholder.hidden = photos.length > 0;
-  if (!photos.length) {
+  const currentPhotos = activePhotos();
+  placeholder.hidden = currentPhotos.length > 0;
+  if (!currentPhotos.length) {
     context.clearRect(0, 0, canvas.width, canvas.height);
     return;
   }
-  paintCover(photos[0].image, 1 + Number(zoomInput.value) / 100);
-  drawTextCard(openingHookInput.value, 350, 44);
-  drawTextCard(photos[0].caption, 930, 38);
+  paintCover(currentPhotos[0].image, 1 + Number(zoomInput.value) / 100);
+  drawTextCard(selectedDraft ? selectedDraft.hook : openingHookInput.value, 350, 44);
+  drawTextCard(currentPhotos[0].caption, 930, 38);
+}
+
+function renderDrafts() {
+  draftList.replaceChildren();
+  draftsPanel.hidden = drafts.length === 0;
+
+  drafts.forEach(draft => {
+    const card = document.createElement("article");
+    card.className = `draft-card${selectedDraft === draft ? " is-selected" : ""}`;
+
+    const title = document.createElement("h3");
+    title.textContent = draft.title;
+
+    const description = document.createElement("p");
+    description.textContent = draft.description;
+
+    const hook = document.createElement("p");
+    hook.className = "draft-hook";
+    hook.textContent = draft.hook;
+
+    const strip = document.createElement("div");
+    strip.className = "draft-photos";
+    strip.setAttribute("aria-label", `${draft.photos.length} photos in ${draft.title}`);
+    draft.photos.forEach((photo, index) => {
+      const thumbnail = document.createElement("img");
+      thumbnail.src = photo.url;
+      thumbnail.alt = `Photo ${index + 1}`;
+      strip.append(thumbnail);
+    });
+
+    const meta = document.createElement("p");
+    meta.className = "draft-meta";
+    const draftDuration = Number(videoDuration(draft.photos).toFixed(1));
+    meta.textContent = `${draft.photos.length} photos · about ${draftDuration} seconds`;
+
+    const actions = document.createElement("div");
+    actions.className = "draft-actions";
+
+    const previewButton = document.createElement("button");
+    previewButton.className = `draft-action${selectedDraft === draft ? " is-primary" : ""}`;
+    previewButton.type = "button";
+    previewButton.textContent = selectedDraft === draft ? "Previewing" : "Preview draft";
+    previewButton.disabled = exportInProgress;
+    previewButton.addEventListener("click", () => selectDraft(draft));
+
+    const downloadButton = document.createElement("button");
+    downloadButton.className = "draft-action";
+    downloadButton.type = "button";
+    downloadButton.textContent = "Make & download";
+    downloadButton.disabled = exportInProgress;
+    downloadButton.addEventListener("click", () => {
+      selectDraft(draft);
+      makeVideo();
+    });
+
+    actions.append(previewButton, downloadButton);
+    card.append(title, description, hook, strip, meta, actions);
+    draftList.append(card);
+  });
+}
+
+function selectDraft(draft) {
+  selectedDraft = draft;
+  openingHookInput.value = draft.hook;
+  closingCtaInput.value = draft.closingCta;
+  renderDrafts();
+  updatePreview();
+  updateSettings();
+  status.textContent = `Previewing ${draft.title}. Make the selected draft when you're ready.`;
+}
+
+function generateDrafts() {
+  if (photos.length < 3) {
+    status.textContent = "Add at least 3 photos to create different story drafts.";
+    return;
+  }
+
+  selectedDraft = null;
+  const selectionSize = Math.min(6, Math.max(2, Math.round(photos.length / 2)));
+  const maxStart = photos.length - selectionSize;
+  const starts = [0, Math.floor(maxStart / 2), maxStart];
+  const selections = photos.length === 3
+    ? [[0, 1], [0, 2], [1, 2]]
+    : starts.map(start => Array.from({ length: selectionSize }, (_, index) => start + index));
+  const descriptions = photos.length === 3
+    ? [
+      "Open with the first photo and follow the clue.",
+      "Pair the opening image with the final reveal.",
+      "Build the cut from the middle to the ending."
+    ]
+    : [
+      "Start with the early photos and follow their order.",
+      "Focus the cut around the middle of your sequence.",
+      "Use the final photos as the story's reveal."
+    ];
+  const hooks = [
+    "It began with one small clue.",
+    "Something here does not add up.",
+    "Everything led to this moment."
+  ];
+  const closingCta = closingCtaInput.value.trim() || "What would you have done?";
+
+  drafts = selections.map((indices, index) => ({
+    id: index,
+    title: ["The first clue", "The strange detail", "The final reveal"][index],
+    description: descriptions[index],
+    hook: openingHookInput.value.trim() || hooks[index],
+    closingCta,
+    photos: indices.map(photoIndex => photos[photoIndex])
+  }));
+  renderDrafts();
+  updatePreview();
+  updateSettings();
+  status.textContent = "Three story drafts are ready. Preview them and choose the one you like best.";
 }
 
 function renderPhotos() {
@@ -166,6 +303,7 @@ function renderPhotos() {
     caption.addEventListener("input", () => {
       photo.caption = caption.value;
       updatePreview();
+      if (drafts.length) renderDrafts();
     });
 
     const durationControl = document.createElement("label");
@@ -185,12 +323,14 @@ function renderPhotos() {
       if (!Number.isFinite(value) || value < 2 || value > 10) return;
       photo.duration = value;
       updateSettings();
+      if (drafts.length) renderDrafts();
     });
     duration.addEventListener("change", () => {
       const value = duration.value === "" ? Number(secondsInput.value) : Number(duration.value);
       photo.duration = Number.isFinite(value) ? Math.min(10, Math.max(2, value)) : Number(secondsInput.value);
       duration.value = String(photo.duration);
       updateSettings();
+      if (drafts.length) renderDrafts();
     });
     durationControl.append(durationText, duration);
 
@@ -226,16 +366,19 @@ function renderPhotos() {
   photoCount.textContent = `${photos.length} photo${photos.length === 1 ? "" : "s"}`;
   updatePreview();
   updateSettings();
+  if (drafts.length) renderDrafts();
 }
 
 function movePhoto(index, offset) {
   const destination = index + offset;
   if (destination < 0 || destination >= photos.length) return;
+  clearDrafts();
   [photos[index], photos[destination]] = [photos[destination], photos[index]];
   renderPhotos();
 }
 
 function removePhoto(index) {
+  clearDrafts();
   URL.revokeObjectURL(photos[index].url);
   photos.splice(index, 1);
   renderPhotos();
@@ -246,6 +389,7 @@ photoInput.addEventListener("change", async () => {
   photoInput.value = "";
   if (!selected.length) return;
 
+  clearDrafts();
   status.textContent = "Loading photos…";
   let failedCount = 0;
   for (const file of selected) {
@@ -301,8 +445,17 @@ for (const input of [zoomInput, volumeInput]) {
 }
 
 for (const input of [openingHookInput, closingCtaInput]) {
-  input.addEventListener("input", updatePreview);
+  input.addEventListener("input", () => {
+    if (selectedDraft) {
+      selectedDraft.hook = openingHookInput.value;
+      selectedDraft.closingCta = closingCtaInput.value;
+      renderDrafts();
+    }
+    updatePreview();
+  });
 }
+
+generateDraftsButton.addEventListener("click", generateDrafts);
 
 function supportedMimeType() {
   if (!window.MediaRecorder) return "";
@@ -316,27 +469,33 @@ function supportedMimeType() {
   return candidates.find(type => MediaRecorder.isTypeSupported(type)) || "";
 }
 
-function downloadBlob(blob, mimeType) {
+function downloadBlob(blob, mimeType, platform, draftNumber) {
   const extension = mimeType.includes("mp4") ? "mp4" : "webm";
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `horror-short.${extension}`;
+  const draftSuffix = draftNumber ? `-draft-${draftNumber}` : "";
+  link.download = `horror-${platform}${draftSuffix}.${extension}`;
   link.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 async function makeVideo() {
-  if (!photos.length || exportInProgress) return;
+  const exportPhotoSet = activePhotos();
+  if (!exportPhotoSet.length || exportInProgress) return;
   if (!canvas.captureStream || !window.MediaRecorder) {
     status.textContent = "Video export is not supported in this browser. Try the latest Chrome or Edge.";
     return;
   }
 
+  const platform = platformInput.value === "tiktok" ? "tiktok" : "youtube-shorts";
+  const draftNumber = selectedDraft ? selectedDraft.id + 1 : null;
+  const openingHook = selectedDraft ? selectedDraft.hook : openingHookInput.value;
+  const closingCta = selectedDraft ? selectedDraft.closingCta : closingCtaInput.value;
   exportInProgress = true;
   renderPhotos();
   makeButton.textContent = "Making your video…";
-  status.textContent = "Keep this page open while the video is being made.";
+  status.textContent = `Keep this page open while your ${platform === "tiktok" ? "TikTok" : "YouTube Shorts"} video is being made.`;
 
   let audioContext = null;
   let audioElement = null;
@@ -348,7 +507,7 @@ async function makeVideo() {
     const mimeType = supportedMimeType();
     if (!mimeType) throw new Error("This browser does not support a video format this editor can export.");
 
-    const exportPhotos = photos.map(photo => ({ ...photo, durationMs: photoSeconds(photo) * 1000 }));
+    const exportPhotos = exportPhotoSet.map(photo => ({ ...photo, durationMs: photoSeconds(photo) * 1000 }));
     const photoStarts = [];
     let durationMs = 0;
     exportPhotos.forEach(photo => {
@@ -391,7 +550,7 @@ async function makeVideo() {
           return;
         }
         const blob = new Blob(chunks, { type: recorder.mimeType || mimeType });
-        downloadBlob(blob, recorder.mimeType || mimeType);
+        downloadBlob(blob, recorder.mimeType || mimeType, platform, draftNumber);
         resolve();
       }, { once: true });
     });
@@ -435,10 +594,10 @@ async function makeVideo() {
 
         const hookWindow = Math.min(1800, durationMs / 3);
         const closingWindow = Math.min(1800, durationMs / 3);
-        if (photoIndex === 0 && elapsed < hookWindow) drawTextCard(openingHookInput.value, 350, 44);
+        if (photoIndex === 0 && elapsed < hookWindow) drawTextCard(openingHook, 350, 44);
         if (photo.caption) drawTextCard(photo.caption, 930, 38);
         if (photoIndex === exportPhotos.length - 1 && elapsed >= durationMs - closingWindow) {
-          drawTextCard(closingCtaInput.value, 1080, 36);
+          drawTextCard(closingCta, 1080, 36);
         }
       } catch (error) {
         renderError = error instanceof Error ? error : new Error("Video rendering failed.");
@@ -456,7 +615,7 @@ async function makeVideo() {
     animationFrame = requestAnimationFrame(renderFrame);
     await finished;
     if (renderError) throw renderError;
-    status.textContent = "Your video is ready and downloaded.";
+    status.textContent = `Your ${platform === "tiktok" ? "TikTok" : "YouTube Shorts"} video is ready and downloaded.`;
   } catch (error) {
     status.textContent = error instanceof Error ? error.message : "The video could not be made. Try again with fewer or smaller files.";
   } finally {
@@ -474,10 +633,13 @@ async function makeVideo() {
       }
     }
     exportInProgress = false;
-    makeButton.textContent = "Make my video";
     renderPhotos();
   }
 }
 
 makeButton.addEventListener("click", makeVideo);
+platformInput.addEventListener("change", () => {
+  const destination = platformInput.value === "tiktok" ? "TikTok" : "YouTube Shorts";
+  status.textContent = `${destination} selected. Both destinations use the same vertical 9:16 format.`;
+});
 updateSettings();

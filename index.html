@@ -90,6 +90,12 @@
               <h2 id="settings-title">Shape your story</h2>
             </div>
           </div>
+          <label class="story-field-label" for="platform">Destination</label>
+          <select id="platform" class="select-input">
+            <option value="youtube">YouTube Shorts</option>
+            <option value="tiktok">TikTok</option>
+          </select>
+          <p class="control-note">Both use vertical 9:16 video; your photos stay on this device.</p>
           <div class="story-fields">
             <label for="opening-hook">Opening hook <span>Shows at the start</span></label>
             <input id="opening-hook" class="text-input" type="text" maxlength="100" placeholder="e.g. Nobody believed what the camera caught">
@@ -109,11 +115,25 @@
             <input id="crossfade" type="checkbox" checked>
             <span>Smooth crossfade between photos</span>
           </label>
+          <button id="generate-drafts" class="draft-button" type="button" disabled>Generate 3 story drafts</button>
+          <p class="control-note">Add at least 3 photos. Drafts are made on your device; they are suggestions, not AI rankings.</p>
           <button id="make-video" class="make-button" type="button" disabled>Make my video</button>
-          <p class="format-note">The video is created on your device with your text, slow zoom, and transitions. It downloads in a format your browser can create, usually WebM. YouTube accepts WebM and MP4.</p>
+          <p class="format-note">Preview the drafts, choose one, then make and download it. The video is created on your device, usually as WebM. If a platform rejects the file type, convert it to MP4 before uploading.</p>
           <p id="status" class="status" role="status" aria-live="polite">Add at least one photo to begin.</p>
         </section>
       </div>
+    </section>
+
+    <section id="story-drafts" class="drafts panel" aria-labelledby="drafts-title" hidden>
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Step 4</p>
+          <h2 id="drafts-title">Choose a story cut</h2>
+        </div>
+        <span class="count">3 DRAFTS</span>
+      </div>
+      <p class="drafts-note">Each draft uses a different part of your photo sequence. Preview the options and download the one you like best.</p>
+      <div id="draft-list" class="draft-list"></div>
     </section>
   </main>
 
