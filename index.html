@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111111">
-  <meta name="description" content="Make a vertical horror video from your photos, narration, and sound.">
+  <meta name="description" content="Turn your photos into a vertical video.">
   <title>Shorts Studio — HORROR</title>
-  <link rel="stylesheet" href="styles.css?v=voice-jumpscare">
-  <script src="app.js?v=voice-jumpscare" defer></script>
+  <link rel="stylesheet" href="styles.css?v=simple-photo-video">
+  <script src="app.js?v=simple-photo-video" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -20,8 +20,8 @@
   <main>
     <section class="intro">
       <p class="eyebrow">A simple video maker</p>
-      <h1>Photos in.<br><span>Story in motion.</span></h1>
-      <p>Arrange your pictures, add captions and a story hook, then make a vertical video with a gentle zoom.</p>
+      <h1>Photos in.<br><span>Video out.</span></h1>
+      <p>Drop in your photos, arrange them, and make a vertical video with optional music.</p>
     </section>
 
     <section class="workspace" aria-label="Video editor">
@@ -29,19 +29,19 @@
         <div class="panel-heading">
           <div>
             <p class="eyebrow">Step 1</p>
-            <h2>Add your media</h2>
+            <h2>Add your photos</h2>
           </div>
           <span id="photo-count" class="count">0 photos</span>
         </div>
 
-        <label class="upload-box" for="photo-files">
+        <label id="photo-drop-zone" class="upload-box" for="photo-files">
           <span class="upload-plus" aria-hidden="true">+</span>
-          <span><strong>Choose photos</strong><small>Select multiple images from your device</small></span>
+          <span><strong>Choose or drop photos</strong><small>Select multiple images from your device</small></span>
         </label>
         <input id="photo-files" type="file" accept="image/*" multiple>
 
         <ol id="photo-list" class="photo-list" aria-label="Photos in video"></ol>
-        <p id="empty-photos" class="empty-note">Your photos will appear here. Use the arrows to change their order, then add a caption and timing to each one.</p>
+        <p id="empty-photos" class="empty-note">Drop photos here or use Choose photos. Rearrange them and set how long each one appears.</p>
 
         <div class="sound-block">
           <div class="sound-heading">
@@ -76,8 +76,7 @@
           <div class="preview-frame">
             <canvas id="video-canvas" width="720" height="1280" aria-label="Video preview"></canvas>
             <div id="preview-placeholder" class="preview-placeholder">
-              <span class="placeholder-mark" aria-hidden="true"></span>
-              <p>Add a photo<br>to see a preview</p>
+              <p>Add or drop photos<br>to see a preview</p>
             </div>
           </div>
           <p id="duration" class="duration">Add photos to see video length</p>
@@ -87,44 +86,15 @@
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Step 3</p>
-              <h2 id="settings-title">Shape your story</h2>
+              <h2 id="settings-title">Video settings</h2>
             </div>
           </div>
-          <label class="story-field-label" for="platform">Destination</label>
+          <label class="settings-label" for="platform">Destination</label>
           <select id="platform" class="select-input">
             <option value="youtube">YouTube Shorts</option>
             <option value="tiktok">TikTok</option>
           </select>
           <p class="control-note">Both use vertical 9:16 video; your photos stay on this device.</p>
-          <div class="story-fields">
-            <label for="opening-hook">Opening hook <span>Shows at the start</span></label>
-            <input id="opening-hook" class="text-input" type="text" maxlength="100" placeholder="e.g. Nobody believed what the camera caught">
-            <label for="closing-cta">Closing line <span>Shows at the end</span></label>
-            <input id="closing-cta" class="text-input" type="text" maxlength="100" placeholder="e.g. Would you have opened the door?">
-          </div>
-          <div class="voice-settings">
-            <label class="toggle-label voice-toggle" for="voice-enabled">
-              <input id="voice-enabled" type="checkbox" checked>
-              <span>Include spooky voice narration</span>
-            </label>
-            <label class="story-field-label" for="voice-style">Voice style</label>
-            <select id="voice-style" class="select-input">
-              <option value="deep">Deep storyteller</option>
-              <option value="whisper">Quiet whisper</option>
-              <option value="demon">Demonic</option>
-              <option value="robot">Uncanny robot</option>
-              <option value="ghost">Ghostly</option>
-            </select>
-            <p class="control-note">Reads your opening line, photo captions, and closing line using your device's built-in voice. Nothing is uploaded.</p>
-            <button id="preview-voice" class="voice-preview-button" type="button">Preview voice</button>
-            <p class="control-note">When making a narrated video, choose this browser tab and enable tab audio in the share prompt so the voice is recorded.</p>
-          </div>
-          <label class="story-field-label" for="edit-style">Edit style</label>
-          <select id="edit-style" class="select-input">
-            <option value="normal">Normal scary edit</option>
-            <option value="jumpscare">Jump-scare quick cuts</option>
-          </select>
-          <p class="control-note">Quick cuts use your photos and end on a zoomed reveal. No flashing effects.</p>
           <label class="range-label" for="seconds">
             <span>Set time for all photos</span><output id="seconds-value" for="seconds">4 sec</output>
           </label>
@@ -138,10 +108,8 @@
             <input id="crossfade" type="checkbox" checked>
             <span>Smooth crossfade between photos</span>
           </label>
-          <button id="generate-drafts" class="draft-button" type="button" disabled>Generate 3 story drafts</button>
-          <p class="control-note">Add at least 3 photos. Drafts are made on your device; they are suggestions, not AI rankings.</p>
-          <button id="make-video" class="make-button" type="button" disabled>Make my video</button>
-          <p class="format-note">Preview the drafts, choose one, then make and download it. MP4 is used when your browser supports it; otherwise the video is saved as WebM.</p>
+          <button id="make-video" class="make-button" type="button" disabled>Make video</button>
+          <p class="format-note">Make and download your video. MP4 is used when your browser supports it; otherwise the video is saved as WebM.</p>
           <div id="download-result" class="download-result" hidden>
             <a id="download-link" class="download-link">Download your video</a>
             <button id="share-video" class="share-button" type="button" hidden>Share or save video</button>
@@ -152,22 +120,11 @@
       </div>
     </section>
 
-    <section id="story-drafts" class="drafts panel" aria-labelledby="drafts-title" hidden>
-      <div class="panel-heading">
-        <div>
-          <p class="eyebrow">Step 4</p>
-          <h2 id="drafts-title">Choose a story cut</h2>
-        </div>
-        <span class="count">3 DRAFTS</span>
-      </div>
-      <p class="drafts-note">Each draft uses a different part of your photo sequence. Preview the options and download the one you like best.</p>
-      <div id="draft-list" class="draft-list"></div>
-    </section>
   </main>
 
   <footer>
     <span>SHORTS STUDIO</span>
-    <span>Your photos, voice text, and sound are not sent to a server.</span>
+    <span>Your photos and sound stay on your device.</span>
   </footer>
 </body>
 </html>
