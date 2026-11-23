@@ -74,6 +74,14 @@
           <textarea id="narration-text" class="narration-text" maxlength="600" placeholder="Enter the story, warning, or voice-over..."></textarea>
           <div class="voice-options" role="radiogroup" aria-label="Scary voice variation">
             <label class="voice-option">
+              <input type="radio" name="voice-variation" value="female">
+              <span><strong>Female voice</strong><small>Natural · clear · warm</small></span>
+            </label>
+            <label class="voice-option">
+              <input type="radio" name="voice-variation" value="male">
+              <span><strong>Male voice</strong><small>Natural · clear · deep</small></span>
+            </label>
+            <label class="voice-option">
               <input type="radio" name="voice-variation" value="whisper" checked>
               <span><strong>Hollow whisper</strong><small>Breathy · distant · slow</small></span>
             </label>
@@ -89,6 +97,7 @@
           <div class="narration-actions">
             <button id="preview-narration" class="narration-button" type="button" disabled>Preview voice</button>
             <button id="stop-narration" class="narration-button narration-button-secondary" type="button" disabled>Stop</button>
+            <button id="download-narration" class="narration-button narration-button-secondary" type="button" disabled>Download audio</button>
           </div>
           <p id="narration-status" class="narration-status">Uses a high-quality voice installed in your browser.</p>
         </div>

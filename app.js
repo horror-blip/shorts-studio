@@ -27,6 +27,7 @@ const narrationText = document.querySelector("#narration-text");
 const voiceOptions = Array.from(document.querySelectorAll('input[name="voice-variation"]'));
 const previewNarrationButton = document.querySelector("#preview-narration");
 const stopNarrationButton = document.querySelector("#stop-narration");
+const downloadNarrationButton = document.querySelector("#download-narration");
 const narrationStatus = document.querySelector("#narration-status");
 
 let photos = [];
@@ -35,85 +36,153 @@ let exportInProgress = false;
 let resultUrl = null;
 let resultFile = null;
 let narrationUtterance = null;
+let kokoroTts = null;
+let generatedNarration = null;
 
 function updateNarrationControls() {
-  const hasNarration = narrationText.value.trim().length > 0;
-  previewNarrationButton.disabled = !hasNarration || !("speechSynthesis" in window);
-  stopNarrationButton.disabled = !("speechSynthesis" in window) || !window.speechSynthesis.speaking;
+  previewNarrationButton.disabled = narrationText.value.trim().length === 0;
+  stopNarrationButton.disabled = !generatedNarration && !narrationUtterance;
+  downloadNarrationButton.disabled = !generatedNarration;
 }
 
-function chooseNarrationVoice(variation) {
-  const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-  if (!voices.length) return null;
-
-  const preference = variation === "cinematic"
-    ? [/english/i, /male/i]
-    : variation === "possessed"
-      ? [/english/i, /male/i, /david/i]
-      : [/english/i, /samantha/i, /female/i];
-
-  return preference
-    .map(pattern => voices.find(voice => pattern.test(`${voice.name} ${voice.lang}`)))
-    .find(Boolean) || voices.find(voice => /^en/i.test(voice.lang)) || voices[0];
+function narrationVoice(variation) {
+  const voices = {
+    female: "af_sarah",
+    male: "am_michael",
+    whisper: "bf_lily",
+    cinematic: "bm_george",
+    possessed: "am_fenrir"
+  };
+  return voices[variation] || voices.whisper;
 }
 
-function narrationProfile(variation) {
-  if (variation === "cinematic") {
-    return { pitch: 0.62, rate: 0.78, volume: 1 };
-  }
-  if (variation === "possessed") {
-    return { pitch: 0.38, rate: 0.68, volume: 1 };
-  }
-  return { pitch: 0.82, rate: 0.72, volume: 0.82 };
+function narrationSpeed(variation) {
+  if (variation === "whisper") return 0.72;
+  if (variation === "cinematic") return 0.82;
+  if (variation === "possessed") return 0.68;
+  return 1;
 }
 
-function previewNarration() {
+async function generateNarration() {
   const text = narrationText.value.trim();
-  if (!text || !("speechSynthesis" in window)) {
-    narrationStatus.textContent = "Text-to-speech is not available in this browser.";
-    return;
-  }
-
-  window.speechSynthesis.cancel();
+  if (!text) return null;
   const variation = voiceOptions.find(option => option.checked)?.value || "whisper";
-  const profile = narrationProfile(variation);
-  narrationUtterance = new SpeechSynthesisUtterance(text);
-  narrationUtterance.voice = chooseNarrationVoice(variation);
-  narrationUtterance.pitch = profile.pitch;
-  narrationUtterance.rate = profile.rate;
-  narrationUtterance.volume = profile.volume;
-  narrationUtterance.onstart = () => {
-    narrationStatus.textContent = "Playing your scary narration.";
-    updateNarrationControls();
-  };
-  narrationUtterance.onend = () => {
-    narrationStatus.textContent = "Preview finished.";
-    narrationUtterance = null;
-    updateNarrationControls();
-  };
-  narrationUtterance.onerror = event => {
-    narrationStatus.textContent = event.error === "canceled"
-      ? "Narration stopped."
-      : "The narration could not be played.";
-    narrationUtterance = null;
-    updateNarrationControls();
-  };
-  window.speechSynthesis.speak(narrationUtterance);
+  if (!kokoroTts) {
+    const { KokoroTTS } = await import("https://esm.sh/kokoro-js@1.2.1");
+    narrationStatus.textContent = "Loading the high-quality voice model…";
+    kokoroTts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", {
+      dtype: "q8",
+      device: "wasm",
+      progress_callback: progress => {
+        if (progress.status === "progress" && progress.progress != null) {
+          narrationStatus.textContent = `Loading voice model… ${Math.round(progress.progress)}%`;
+        }
+      }
+    });
+  }
+  narrationStatus.textContent = "Generating narration…";
+  const raw = await kokoroTts.generate(text, {
+    voice: narrationVoice(variation),
+    speed: narrationSpeed(variation)
+  });
+  generatedNarration = raw;
+  narrationStatus.textContent = "High-quality narration is ready.";
+  updateNarrationControls();
+  return raw;
 }
 
-narrationText.addEventListener("input", updateNarrationControls);
+async function previewNarration() {
+  if (generatedNarration) {
+    const existingAudio = narrationUtterance;
+    if (existingAudio) existingAudio.pause();
+  }
+  narrationUtterance = null;
+  try {
+    const raw = await generateNarration();
+    if (!raw) return;
+    const audioContext = new AudioContext();
+    const buffer = await rawAudioToBuffer(raw, audioContext);
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+    source.start();
+    narrationUtterance = source;
+    stopNarrationButton.disabled = false;
+  } catch (error) {
+    narrationStatus.textContent = error instanceof Error ? error.message : "The narration could not be generated.";
+  }
+}
+
+async function rawAudioToBuffer(raw, audioContext) {
+  const samples = raw.audio || raw.data || raw;
+  const sampleRate = raw.sampling_rate || raw.samplingRate || 24000;
+  const channelData = samples instanceof Float32Array ? samples : new Float32Array(samples);
+  const buffer = audioContext.createBuffer(1, channelData.length, sampleRate);
+  buffer.copyToChannel(channelData, 0);
+  return buffer;
+}
+
+function createWavBlob(raw) {
+  const samples = raw.audio || raw.data || raw;
+  const sampleRate = raw.sampling_rate || raw.samplingRate || 24000;
+  const channelData = samples instanceof Float32Array ? samples : new Float32Array(samples);
+  const bytesPerSample = 2;
+  const buffer = new ArrayBuffer(44 + channelData.length * bytesPerSample);
+  const view = new DataView(buffer);
+  const writeText = (offset, text) => {
+    for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  writeText(0, "RIFF");
+  view.setUint32(4, 36 + channelData.length * bytesPerSample, true);
+  writeText(8, "WAVE");
+  writeText(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * bytesPerSample, true);
+  view.setUint16(32, bytesPerSample, true);
+  view.setUint16(34, 16, true);
+  writeText(36, "data");
+  view.setUint32(40, channelData.length * bytesPerSample, true);
+  for (let i = 0; i < channelData.length; i++) {
+    const sample = Math.max(-1, Math.min(1, channelData[i]));
+    view.setInt16(44 + i * bytesPerSample, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+  }
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+downloadNarrationButton.addEventListener("click", () => {
+  if (!generatedNarration) return;
+  const url = URL.createObjectURL(createWavBlob(generatedNarration));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "horror-narration.wav";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  narrationStatus.textContent = "Narration audio downloaded.";
+});
+
+narrationText.addEventListener("input", () => {
+  generatedNarration = null;
+  updateNarrationControls();
+});
 voiceOptions.forEach(option => option.addEventListener("change", () => {
+  generatedNarration = null;
   narrationStatus.textContent = "Voice variation selected.";
+  updateNarrationControls();
 }));
 previewNarrationButton.addEventListener("click", previewNarration);
 stopNarrationButton.addEventListener("click", () => {
-  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-  narrationStatus.textContent = "Narration stopped.";
+  if (narrationUtterance && typeof narrationUtterance.stop === "function") {
+    narrationUtterance.stop();
+  }
+  narrationUtterance = null;
+  narrationStatus.textContent = "Preview stopped.";
   updateNarrationControls();
 });
-if ("speechSynthesis" in window) {
-  window.speechSynthesis.addEventListener("voiceschanged", updateNarrationControls);
-}
 
 function photoSeconds(photo) {
   return Number(photo.duration) || Number(secondsInput.value);
@@ -159,7 +228,8 @@ function updateSettings() {
   crossfadeInput.disabled = exportInProgress;
   narrationText.disabled = exportInProgress;
   voiceOptions.forEach(option => { option.disabled = exportInProgress; });
-  previewNarrationButton.disabled = exportInProgress || !narrationText.value.trim() || !("speechSynthesis" in window);
+  previewNarrationButton.disabled = exportInProgress || !narrationText.value.trim();
+  downloadNarrationButton.disabled = exportInProgress || !generatedNarration;
 }
 
 function drawCover(image, zoom, opacity = 1) {
@@ -409,6 +479,7 @@ async function makeVideo() {
   let audioContext = null;
   let audioElement = null;
   let audioGain = null;
+  let narrationSource = null;
   let stream = null;
   let animationFrame = 0;
   let renderError = null;
@@ -426,7 +497,7 @@ async function makeVideo() {
     });
     stream = canvas.captureStream(30);
 
-    if (soundUrl) {
+    if (soundUrl || narrationText.value.trim()) {
       audioContext = new AudioContext();
       await audioContext.resume();
       const destination = audioContext.createMediaStreamDestination();
@@ -434,12 +505,27 @@ async function makeVideo() {
       audioGain = gain;
       const targetGain = Number(volumeInput.value) / 100;
       gain.gain.value = audioFadeInput.checked ? 0 : targetGain;
-      audioElement = new Audio(soundUrl);
-      audioElement.loop = true;
-      const source = audioContext.createMediaElementSource(audioElement);
-      source.connect(gain);
+
+      if (soundUrl) {
+        audioElement = new Audio(soundUrl);
+        audioElement.loop = true;
+        const source = audioContext.createMediaElementSource(audioElement);
+        source.connect(gain);
+        await audioElement.play();
+      }
+
       gain.connect(destination);
-      await audioElement.play();
+
+      if (narrationText.value.trim()) {
+        const raw = await generateNarration();
+        if (!raw) throw new Error("The narration could not be generated.");
+        const narrationBuffer = await rawAudioToBuffer(raw, audioContext);
+        narrationSource = audioContext.createBufferSource();
+        narrationSource.buffer = narrationBuffer;
+        narrationSource.connect(gain);
+        narrationSource.start();
+      }
+
       for (const track of destination.stream.getAudioTracks()) stream.addTrack(track);
     }
 
@@ -530,6 +616,9 @@ async function makeVideo() {
     if (audioElement) {
       audioElement.pause();
       audioElement.currentTime = 0;
+    }
+    if (narrationSource) {
+      try { narrationSource.stop(); } catch (error) {}
     }
     if (stream) stream.getTracks().forEach(track => track.stop());
     if (audioContext && audioContext.state !== "closed") {
