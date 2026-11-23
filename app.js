@@ -68,7 +68,7 @@ async function generateNarration() {
   if (!text) return null;
   const variation = voiceOptions.find(option => option.checked)?.value || "whisper";
   if (!kokoroTts) {
-    const { KokoroTTS } = await import("https://esm.sh/kokoro-js@1.2.1");
+    const { KokoroTTS } = await import("https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js");
     narrationStatus.textContent = "Loading the high-quality voice model…";
     kokoroTts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", {
       dtype: "q8",
