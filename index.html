@@ -62,6 +62,36 @@
             <span>Fade sound in and out</span>
           </label>
         </div>
+
+        <div class="narration-block">
+          <div class="sound-heading">
+            <div>
+              <p class="eyebrow">Text to audio</p>
+              <h3>Scary narration</h3>
+            </div>
+          </div>
+          <label class="narration-label" for="narration-text">Narration</label>
+          <textarea id="narration-text" class="narration-text" maxlength="600" placeholder="Enter the story, warning, or voice-over..."></textarea>
+          <div class="voice-options" role="radiogroup" aria-label="Scary voice variation">
+            <label class="voice-option">
+              <input type="radio" name="voice-variation" value="whisper" checked>
+              <span><strong>Hollow whisper</strong><small>Breathy · distant · slow</small></span>
+            </label>
+            <label class="voice-option">
+              <input type="radio" name="voice-variation" value="cinematic">
+              <span><strong>Midnight narrator</strong><small>Deep · dramatic · ominous</small></span>
+            </label>
+            <label class="voice-option">
+              <input type="radio" name="voice-variation" value="possessed">
+              <span><strong>Possessed voice</strong><small>Unstable · intense · haunting</small></span>
+            </label>
+          </div>
+          <div class="narration-actions">
+            <button id="preview-narration" class="narration-button" type="button" disabled>Preview voice</button>
+            <button id="stop-narration" class="narration-button narration-button-secondary" type="button" disabled>Stop</button>
+          </div>
+          <p id="narration-status" class="narration-status">Uses a high-quality voice installed in your browser.</p>
+        </div>
       </div>
 
       <div class="preview-column">

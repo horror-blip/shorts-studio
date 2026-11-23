@@ -23,12 +23,97 @@ const downloadResult = document.querySelector("#download-result");
 const downloadLink = document.querySelector("#download-link");
 const shareButton = document.querySelector("#share-video");
 const status = document.querySelector("#status");
+const narrationText = document.querySelector("#narration-text");
+const voiceOptions = Array.from(document.querySelectorAll('input[name="voice-variation"]'));
+const previewNarrationButton = document.querySelector("#preview-narration");
+const stopNarrationButton = document.querySelector("#stop-narration");
+const narrationStatus = document.querySelector("#narration-status");
 
 let photos = [];
 let soundUrl = null;
 let exportInProgress = false;
 let resultUrl = null;
 let resultFile = null;
+let narrationUtterance = null;
+
+function updateNarrationControls() {
+  const hasNarration = narrationText.value.trim().length > 0;
+  previewNarrationButton.disabled = !hasNarration || !("speechSynthesis" in window);
+  stopNarrationButton.disabled = !("speechSynthesis" in window) || !window.speechSynthesis.speaking;
+}
+
+function chooseNarrationVoice(variation) {
+  const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  if (!voices.length) return null;
+
+  const preference = variation === "cinematic"
+    ? [/english/i, /male/i]
+    : variation === "possessed"
+      ? [/english/i, /male/i, /david/i]
+      : [/english/i, /samantha/i, /female/i];
+
+  return preference
+    .map(pattern => voices.find(voice => pattern.test(`${voice.name} ${voice.lang}`)))
+    .find(Boolean) || voices.find(voice => /^en/i.test(voice.lang)) || voices[0];
+}
+
+function narrationProfile(variation) {
+  if (variation === "cinematic") {
+    return { pitch: 0.62, rate: 0.78, volume: 1 };
+  }
+  if (variation === "possessed") {
+    return { pitch: 0.38, rate: 0.68, volume: 1 };
+  }
+  return { pitch: 0.82, rate: 0.72, volume: 0.82 };
+}
+
+function previewNarration() {
+  const text = narrationText.value.trim();
+  if (!text || !("speechSynthesis" in window)) {
+    narrationStatus.textContent = "Text-to-speech is not available in this browser.";
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const variation = voiceOptions.find(option => option.checked)?.value || "whisper";
+  const profile = narrationProfile(variation);
+  narrationUtterance = new SpeechSynthesisUtterance(text);
+  narrationUtterance.voice = chooseNarrationVoice(variation);
+  narrationUtterance.pitch = profile.pitch;
+  narrationUtterance.rate = profile.rate;
+  narrationUtterance.volume = profile.volume;
+  narrationUtterance.onstart = () => {
+    narrationStatus.textContent = "Playing your scary narration.";
+    updateNarrationControls();
+  };
+  narrationUtterance.onend = () => {
+    narrationStatus.textContent = "Preview finished.";
+    narrationUtterance = null;
+    updateNarrationControls();
+  };
+  narrationUtterance.onerror = event => {
+    narrationStatus.textContent = event.error === "canceled"
+      ? "Narration stopped."
+      : "The narration could not be played.";
+    narrationUtterance = null;
+    updateNarrationControls();
+  };
+  window.speechSynthesis.speak(narrationUtterance);
+}
+
+narrationText.addEventListener("input", updateNarrationControls);
+voiceOptions.forEach(option => option.addEventListener("change", () => {
+  narrationStatus.textContent = "Voice variation selected.";
+}));
+previewNarrationButton.addEventListener("click", previewNarration);
+stopNarrationButton.addEventListener("click", () => {
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  narrationStatus.textContent = "Narration stopped.";
+  updateNarrationControls();
+});
+if ("speechSynthesis" in window) {
+  window.speechSynthesis.addEventListener("voiceschanged", updateNarrationControls);
+}
 
 function photoSeconds(photo) {
   return Number(photo.duration) || Number(secondsInput.value);
@@ -72,6 +157,9 @@ function updateSettings() {
   volumeInput.disabled = exportInProgress;
   audioFadeInput.disabled = exportInProgress;
   crossfadeInput.disabled = exportInProgress;
+  narrationText.disabled = exportInProgress;
+  voiceOptions.forEach(option => { option.disabled = exportInProgress; });
+  previewNarrationButton.disabled = exportInProgress || !narrationText.value.trim() || !("speechSynthesis" in window);
 }
 
 function drawCover(image, zoom, opacity = 1) {
@@ -475,3 +563,4 @@ platformInput.addEventListener("change", () => {
   status.textContent = `${destination} selected. Both destinations use the same vertical 9:16 format.`;
 });
 updateSettings();
+updateNarrationControls();
