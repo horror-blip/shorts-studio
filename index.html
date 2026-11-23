@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111111">
-  <meta name="description" content="Make a vertical slow-zoom video from your photos and sound.">
+  <meta name="description" content="Make a vertical horror video from your photos, narration, and sound.">
   <title>Shorts Studio — HORROR</title>
-  <link rel="stylesheet" href="styles.css?v=video-download">
-  <script src="app.js?v=video-download" defer></script>
+  <link rel="stylesheet" href="styles.css?v=voice-jumpscare">
+  <script src="app.js?v=voice-jumpscare" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -102,6 +102,29 @@
             <label for="closing-cta">Closing line <span>Shows at the end</span></label>
             <input id="closing-cta" class="text-input" type="text" maxlength="100" placeholder="e.g. Would you have opened the door?">
           </div>
+          <div class="voice-settings">
+            <label class="toggle-label voice-toggle" for="voice-enabled">
+              <input id="voice-enabled" type="checkbox" checked>
+              <span>Include spooky voice narration</span>
+            </label>
+            <label class="story-field-label" for="voice-style">Voice style</label>
+            <select id="voice-style" class="select-input">
+              <option value="deep">Deep storyteller</option>
+              <option value="whisper">Quiet whisper</option>
+              <option value="demon">Demonic</option>
+              <option value="robot">Uncanny robot</option>
+              <option value="ghost">Ghostly</option>
+            </select>
+            <p class="control-note">Reads your opening line, photo captions, and closing line using your device's built-in voice. Nothing is uploaded.</p>
+            <button id="preview-voice" class="voice-preview-button" type="button">Preview voice</button>
+            <p class="control-note">When making a narrated video, choose this browser tab and enable tab audio in the share prompt so the voice is recorded.</p>
+          </div>
+          <label class="story-field-label" for="edit-style">Edit style</label>
+          <select id="edit-style" class="select-input">
+            <option value="normal">Normal scary edit</option>
+            <option value="jumpscare">Jump-scare quick cuts</option>
+          </select>
+          <p class="control-note">Quick cuts use your photos and end on a zoomed reveal. No flashing effects.</p>
           <label class="range-label" for="seconds">
             <span>Set time for all photos</span><output id="seconds-value" for="seconds">4 sec</output>
           </label>
@@ -144,7 +167,7 @@
 
   <footer>
     <span>SHORTS STUDIO</span>
-    <span>Your photos and sound are not sent to a server.</span>
+    <span>Your photos, voice text, and sound are not sent to a server.</span>
   </footer>
 </body>
 </html>

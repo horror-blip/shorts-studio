@@ -14,6 +14,10 @@ const audioFadeInput = document.querySelector("#audio-fade");
 const crossfadeInput = document.querySelector("#crossfade");
 const openingHookInput = document.querySelector("#opening-hook");
 const closingCtaInput = document.querySelector("#closing-cta");
+const voiceEnabledInput = document.querySelector("#voice-enabled");
+const voiceStyleInput = document.querySelector("#voice-style");
+const previewVoiceButton = document.querySelector("#preview-voice");
+const editStyleInput = document.querySelector("#edit-style");
 const platformInput = document.querySelector("#platform");
 const secondsValue = document.querySelector("#seconds-value");
 const zoomValue = document.querySelector("#zoom-value");
@@ -37,6 +41,14 @@ let exportInProgress = false;
 let resultUrl = null;
 let resultFile = null;
 
+const voiceStyles = {
+  deep: { rate: 0.82, pitch: 0.6, volume: 1 },
+  whisper: { rate: 0.94, pitch: 1, volume: 0.65 },
+  demon: { rate: 0.78, pitch: 0.45, volume: 1 },
+  robot: { rate: 1.04, pitch: 0.8, volume: 1 },
+  ghost: { rate: 0.88, pitch: 1.35, volume: 0.8 }
+};
+
 function photoSeconds(photo) {
   return Number(photo.duration) || Number(secondsInput.value);
 }
@@ -45,8 +57,44 @@ function activePhotos() {
   return selectedDraft ? selectedDraft.photos : photos;
 }
 
+function narrationText(photoSet = activePhotos(), hook = openingHookInput.value, closing = closingCtaInput.value) {
+  const opening = hook.trim() || "Something is watching.";
+  const ending = closing.trim() || "Would you have opened the door?";
+  return [opening, ...photoSet.map(photo => photo.caption.trim()).filter(Boolean), ending].join(". ");
+}
+
+function narrationDurationMs(text, style = voiceStyleInput.value) {
+  if (!text || !voiceEnabledInput.checked) return 0;
+  const rate = (voiceStyles[style] || voiceStyles.deep).rate;
+  return (text.length / (13 * rate) + 0.8) * 1000;
+}
+
+function videoTimeline(photoSet) {
+  const timeline = photoSet.map(photo => ({
+    photo,
+    durationMs: photoSeconds(photo) * 1000,
+    isJumpScare: false,
+    isReveal: false
+  }));
+  if (editStyleInput.value === "jumpscare" && photoSet.length) {
+    photoSet.forEach(photo => timeline.push({ photo, durationMs: 500, isJumpScare: true, isReveal: false }));
+    timeline.push({ photo: photoSet[photoSet.length - 1], durationMs: 1250, isJumpScare: true, isReveal: true });
+  }
+  const timelineDuration = timeline.reduce((total, segment) => total + segment.durationMs, 0);
+  const speechDuration = narrationDurationMs(narrationText(photoSet));
+  if (speechDuration > timelineDuration) {
+    timeline.push({
+      photo: photoSet[photoSet.length - 1],
+      durationMs: speechDuration - timelineDuration + 250,
+      isJumpScare: false,
+      isReveal: false
+    });
+  }
+  return timeline;
+}
+
 function videoDuration(photoSet = activePhotos()) {
-  return photoSet.reduce((total, photo) => total + photoSeconds(photo), 0);
+  return videoTimeline(photoSet).reduce((total, segment) => total + segment.durationMs, 0) / 1000;
 }
 
 function isAppleMobileDevice() {
@@ -81,6 +129,10 @@ function updateSettings() {
   crossfadeInput.disabled = exportInProgress;
   openingHookInput.disabled = exportInProgress;
   closingCtaInput.disabled = exportInProgress;
+  voiceEnabledInput.disabled = exportInProgress;
+  voiceStyleInput.disabled = exportInProgress || !voiceEnabledInput.checked;
+  previewVoiceButton.disabled = exportInProgress || !voiceEnabledInput.checked;
+  editStyleInput.disabled = exportInProgress;
 }
 
 function drawCover(image, zoom, opacity = 1) {
@@ -317,6 +369,7 @@ function renderPhotos() {
     caption.addEventListener("input", () => {
       photo.caption = caption.value;
       updatePreview();
+      updateSettings();
       if (drafts.length) renderDrafts();
     });
 
@@ -466,10 +519,44 @@ for (const input of [openingHookInput, closingCtaInput]) {
       renderDrafts();
     }
     updatePreview();
+    updateSettings();
   });
 }
 
 generateDraftsButton.addEventListener("click", generateDrafts);
+
+function makeNarrationUtterance(text) {
+  const utterance = new SpeechSynthesisUtterance(text);
+  const style = voiceStyles[voiceStyleInput.value] || voiceStyles.deep;
+  const voices = window.speechSynthesis.getVoices();
+  const preferredVoice = voices.find(voice => voice.lang.toLowerCase() === "en-us") ||
+    voices.find(voice => voice.lang.toLowerCase().startsWith("en-"));
+  if (preferredVoice) {
+    utterance.voice = preferredVoice;
+    utterance.lang = preferredVoice.lang;
+  }
+  utterance.rate = style.rate;
+  utterance.pitch = style.pitch;
+  utterance.volume = style.volume;
+  return utterance;
+}
+
+previewVoiceButton.addEventListener("click", () => {
+  if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+    status.textContent = "Voice narration is not supported in this browser.";
+    return;
+  }
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(makeNarrationUtterance(narrationText()));
+  status.textContent = "Playing a preview of your selected voice style.";
+});
+
+for (const input of [voiceEnabledInput, voiceStyleInput, editStyleInput]) {
+  input.addEventListener("change", () => {
+    updateSettings();
+    if (input === editStyleInput) updatePreview();
+  });
+}
 
 function supportedMimeType() {
   if (!window.MediaRecorder) return "";
@@ -522,44 +609,83 @@ async function makeVideo() {
   const draftNumber = selectedDraft ? selectedDraft.id + 1 : null;
   const openingHook = selectedDraft ? selectedDraft.hook : openingHookInput.value;
   const closingCta = selectedDraft ? selectedDraft.closingCta : closingCtaInput.value;
+  const voiceEnabled = voiceEnabledInput.checked;
+  if (voiceEnabled && (
+    !navigator.mediaDevices ||
+    !navigator.mediaDevices.getDisplayMedia ||
+    !("speechSynthesis" in window) ||
+    typeof SpeechSynthesisUtterance === "undefined"
+  )) {
+    status.textContent = "Narrated export needs a browser with built-in speech and tab-audio capture. Turn narration off to make a silent video.";
+    return;
+  }
   exportInProgress = true;
   renderPhotos();
   makeButton.textContent = "Making your video…";
-  status.textContent = `Keep this page open while your ${platform === "tiktok" ? "TikTok" : "YouTube Shorts"} video is being made.`;
+  status.textContent = voiceEnabled
+    ? "Choose this browser tab and enable tab audio in the share prompt to record your narration."
+    : `Keep this page open while your ${platform === "tiktok" ? "TikTok" : "YouTube Shorts"} video is being made.`;
 
   let audioContext = null;
   let audioElement = null;
   let audioGain = null;
+  let displayCapture = null;
   let stream = null;
   let animationFrame = 0;
+  let renderError = null;
 
   try {
     const mimeType = supportedMimeType();
     if (!mimeType) throw new Error("This browser does not support a video format this editor can export.");
 
-    const exportPhotos = exportPhotoSet.map(photo => ({ ...photo, durationMs: photoSeconds(photo) * 1000 }));
-    const photoStarts = [];
+    const displayCaptureRequest = voiceEnabled
+      ? navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+        preferCurrentTab: true,
+        selfBrowserSurface: "include",
+        systemAudio: "include"
+      })
+      : null;
+    const timeline = videoTimeline(exportPhotoSet);
+    const timelineStarts = [];
     let durationMs = 0;
-    exportPhotos.forEach(photo => {
-      photoStarts.push(durationMs);
-      durationMs += photo.durationMs;
+    timeline.forEach(segment => {
+      timelineStarts.push(durationMs);
+      durationMs += segment.durationMs;
     });
     stream = canvas.captureStream(30);
-    if (soundUrl) {
+    if (displayCaptureRequest) {
+      displayCapture = await displayCaptureRequest;
+      const audioTracks = displayCapture.getAudioTracks();
+      if (!audioTracks.length) {
+        throw new Error("No tab audio was shared. Try again, choose this browser tab, and turn on Share tab audio.");
+      }
+      displayCapture.getVideoTracks().forEach(track => track.stop());
+      status.textContent = `Recording your voice for the ${platform === "tiktok" ? "TikTok" : "YouTube Shorts"} video. Keep this page open.`;
+    }
+
+    if (soundUrl || displayCapture) {
       audioContext = new AudioContext();
       await audioContext.resume();
       const destination = audioContext.createMediaStreamDestination();
-      const gain = audioContext.createGain();
-      audioGain = gain;
-      const targetGain = Number(volumeInput.value) / 100;
-      gain.gain.value = audioFadeInput.checked ? 0 : targetGain;
-      audioElement = new Audio(soundUrl);
-      audioElement.loop = true;
-      const source = audioContext.createMediaElementSource(audioElement);
-      source.connect(gain);
-      gain.connect(destination);
+      if (displayCapture) {
+        const voiceSource = audioContext.createMediaStreamSource(new MediaStream(displayCapture.getAudioTracks()));
+        voiceSource.connect(destination);
+      }
+      if (soundUrl) {
+        const gain = audioContext.createGain();
+        audioGain = gain;
+        const targetGain = Number(volumeInput.value) / 100;
+        gain.gain.value = audioFadeInput.checked ? 0 : targetGain;
+        audioElement = new Audio(soundUrl);
+        audioElement.loop = true;
+        const source = audioContext.createMediaElementSource(audioElement);
+        source.connect(gain);
+        gain.connect(destination);
+        await audioElement.play();
+      }
       for (const track of destination.stream.getAudioTracks()) stream.addTrack(track);
-      await audioElement.play();
     }
 
     const recorder = new MediaRecorder(stream, {
@@ -567,7 +693,6 @@ async function makeVideo() {
       videoBitsPerSecond: 5_000_000
     });
     const chunks = [];
-    let renderError = null;
 
     const finished = new Promise((resolve, reject) => {
       recorder.addEventListener("dataavailable", event => {
@@ -575,8 +700,12 @@ async function makeVideo() {
       });
       recorder.addEventListener("error", event => reject(event.error || new Error("Video recording failed.")), { once: true });
       recorder.addEventListener("stop", () => {
+        if (renderError) {
+          reject(renderError);
+          return;
+        }
         if (!chunks.length) {
-          reject(renderError || new Error("No video data was created. Try fewer or smaller photos."));
+          reject(new Error("No video data was created. Try fewer or smaller photos."));
           return;
         }
         const blob = new Blob(chunks, { type: recorder.mimeType || mimeType });
@@ -597,36 +726,56 @@ async function makeVideo() {
       audioGain.gain.setValueAtTime(targetGain, audioStart + durationMs / 1000 - fadeSeconds);
       audioGain.gain.linearRampToValueAtTime(0, audioStart + durationMs / 1000);
     }
+    if (voiceEnabled) {
+      window.speechSynthesis.cancel();
+      const utterance = makeNarrationUtterance(narrationText(exportPhotoSet, openingHook, closingCta));
+      utterance.onerror = () => {
+        renderError = new Error("The browser could not play the selected voice. Try another voice style or browser.");
+        if (recorder.state === "recording") recorder.stop();
+      };
+      window.speechSynthesis.speak(utterance);
+    }
     const zoomFactor = 1 + Number(zoomInput.value) / 100;
 
     function renderFrame(now) {
       try {
         const elapsed = Math.max(0, Math.min(now - startTime, durationMs));
-        let photoIndex = photoStarts.findIndex((photoStart, index) => elapsed < photoStart + exportPhotos[index].durationMs);
-        if (photoIndex < 0) photoIndex = exportPhotos.length - 1;
-        const photo = exportPhotos[photoIndex];
+        let segmentIndex = timelineStarts.findIndex((segmentStart, index) => elapsed < segmentStart + timeline[index].durationMs);
+        if (segmentIndex < 0) segmentIndex = timeline.length - 1;
+        const segment = timeline[segmentIndex];
+        const photo = segment && segment.photo;
         if (!photo) throw new Error("A photo was unavailable while rendering. Please reload your photos and try again.");
-        const photoElapsed = elapsed - photoStarts[photoIndex];
-        const photoProgress = Math.max(0, Math.min(photoElapsed / photo.durationMs, 1));
-        const scale = 1 + (zoomFactor - 1) * photoProgress;
+        const segmentElapsed = elapsed - timelineStarts[segmentIndex];
+        const segmentProgress = Math.max(0, Math.min(segmentElapsed / segment.durationMs, 1));
+        const scale = segment.isReveal
+          ? 1.08 + segmentProgress * 0.32
+          : segment.isJumpScare
+            ? 1.08 + segmentProgress * 0.06
+            : 1 + (zoomFactor - 1) * segmentProgress;
         context.clearRect(0, 0, canvas.width, canvas.height);
         drawCover(photo.image, scale);
+        if (segment.isJumpScare) {
+          context.fillStyle = "rgba(36, 0, 0, 0.16)";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
-        const nextPhoto = exportPhotos[photoIndex + 1];
-        const transitionMs = nextPhoto ? Math.min(450, photo.durationMs / 4, nextPhoto.durationMs / 4) : 0;
-        if (crossfadeInput.checked && nextPhoto && transitionMs > 0) {
-          const transitionStart = photo.durationMs - transitionMs;
-          if (photoElapsed > transitionStart) {
-            const transitionProgress = (photoElapsed - transitionStart) / transitionMs;
-            drawCover(nextPhoto.image, 1 + (zoomFactor - 1) * transitionProgress, transitionProgress);
+        const nextSegment = timeline[segmentIndex + 1];
+        const transitionMs = nextSegment && !segment.isJumpScare && !nextSegment.isJumpScare
+          ? Math.min(450, segment.durationMs / 4, nextSegment.durationMs / 4)
+          : 0;
+        if (crossfadeInput.checked && nextSegment && transitionMs > 0) {
+          const transitionStart = segment.durationMs - transitionMs;
+          if (segmentElapsed > transitionStart) {
+            const transitionProgress = (segmentElapsed - transitionStart) / transitionMs;
+            drawCover(nextSegment.photo.image, 1 + (zoomFactor - 1) * transitionProgress, transitionProgress);
           }
         }
 
         const hookWindow = Math.min(1800, durationMs / 3);
         const closingWindow = Math.min(1800, durationMs / 3);
-        if (photoIndex === 0 && elapsed < hookWindow) drawTextCard(openingHook, 350, 44);
-        if (photo.caption) drawTextCard(photo.caption, 930, 38);
-        if (photoIndex === exportPhotos.length - 1 && elapsed >= durationMs - closingWindow) {
+        if (segmentIndex === 0 && elapsed < hookWindow) drawTextCard(openingHook, 350, 44);
+        if (!segment.isJumpScare && photo.caption) drawTextCard(photo.caption, 930, 38);
+        if (segmentIndex === timeline.length - 1 && elapsed >= durationMs - closingWindow) {
           drawTextCard(closingCta, 1080, 36);
         }
       } catch (error) {
@@ -654,6 +803,8 @@ async function makeVideo() {
       audioElement.pause();
       audioElement.currentTime = 0;
     }
+    if (displayCapture) displayCapture.getTracks().forEach(track => track.stop());
+    if (voiceEnabled && "speechSynthesis" in window) window.speechSynthesis.cancel();
     if (stream) stream.getTracks().forEach(track => track.stop());
     if (audioContext && audioContext.state !== "closed") {
       try {
