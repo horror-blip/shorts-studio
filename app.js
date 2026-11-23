@@ -23,6 +23,9 @@ const generateDraftsButton = document.querySelector("#generate-drafts");
 const draftsPanel = document.querySelector("#story-drafts");
 const draftList = document.querySelector("#draft-list");
 const makeButton = document.querySelector("#make-video");
+const downloadResult = document.querySelector("#download-result");
+const downloadLink = document.querySelector("#download-link");
+const shareButton = document.querySelector("#share-video");
 const status = document.querySelector("#status");
 
 let photos = [];
@@ -31,6 +34,8 @@ let soundUrl = null;
 let drafts = [];
 let selectedDraft = null;
 let exportInProgress = false;
+let resultUrl = null;
+let resultFile = null;
 
 function photoSeconds(photo) {
   return Number(photo.duration) || Number(secondsInput.value);
@@ -42,6 +47,15 @@ function activePhotos() {
 
 function videoDuration(photoSet = activePhotos()) {
   return photoSet.reduce((total, photo) => total + photoSeconds(photo), 0);
+}
+
+function isAppleMobileDevice() {
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function isMobileDevice() {
+  return isAppleMobileDevice() || /Android/.test(navigator.userAgent);
 }
 
 function updateSettings() {
@@ -459,25 +473,41 @@ generateDraftsButton.addEventListener("click", generateDrafts);
 
 function supportedMimeType() {
   if (!window.MediaRecorder) return "";
-  const candidates = [
-    "video/webm;codecs=vp9,opus",
-    "video/webm;codecs=vp8,opus",
-    "video/webm",
+  const mp4Candidates = [
     'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
     "video/mp4"
   ];
+  const webmCandidates = [
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm"
+  ];
+  const candidates = isAppleMobileDevice()
+    ? [...mp4Candidates, ...webmCandidates]
+    : [...webmCandidates, ...mp4Candidates];
   return candidates.find(type => MediaRecorder.isTypeSupported(type)) || "";
+}
+
+function canShareVideo(file) {
+  if (!file || !navigator.canShare || !navigator.share) return false;
+  try {
+    return navigator.canShare({ files: [file] });
+  } catch {
+    return false;
+  }
 }
 
 function downloadBlob(blob, mimeType, platform, draftNumber) {
   const extension = mimeType.includes("mp4") ? "mp4" : "webm";
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
   const draftSuffix = draftNumber ? `-draft-${draftNumber}` : "";
-  link.download = `horror-${platform}${draftSuffix}.${extension}`;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  const filename = `horror-${platform}${draftSuffix}.${extension}`;
+  if (resultUrl) URL.revokeObjectURL(resultUrl);
+  resultUrl = URL.createObjectURL(blob);
+  resultFile = typeof File === "undefined" ? null : new File([blob], filename, { type: blob.type || mimeType });
+  downloadLink.href = resultUrl;
+  downloadLink.download = filename;
+  downloadResult.hidden = false;
+  shareButton.hidden = !isMobileDevice() || !canShareVideo(resultFile);
 }
 
 async function makeVideo() {
@@ -615,7 +645,7 @@ async function makeVideo() {
     animationFrame = requestAnimationFrame(renderFrame);
     await finished;
     if (renderError) throw renderError;
-    status.textContent = `Your ${platform === "tiktok" ? "TikTok" : "YouTube Shorts"} video is ready and downloaded.`;
+    status.textContent = `Your ${platform === "tiktok" ? "TikTok" : "YouTube Shorts"} video is ready. Use the download or share button to save it to your device.`;
   } catch (error) {
     status.textContent = error instanceof Error ? error.message : "The video could not be made. Try again with fewer or smaller files.";
   } finally {
@@ -638,6 +668,19 @@ async function makeVideo() {
 }
 
 makeButton.addEventListener("click", makeVideo);
+shareButton.addEventListener("click", async () => {
+  if (!resultFile || !navigator.share) return;
+  try {
+    await navigator.share({ files: [resultFile], title: resultFile.name });
+    status.textContent = "The share menu was opened for your video.";
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      status.textContent = "Sharing was canceled. Your video is still ready to download.";
+      return;
+    }
+    status.textContent = error instanceof Error ? error.message : "The share menu could not be opened. Use the download link instead.";
+  }
+});
 platformInput.addEventListener("change", () => {
   const destination = platformInput.value === "tiktok" ? "TikTok" : "YouTube Shorts";
   status.textContent = `${destination} selected. Both destinations use the same vertical 9:16 format.`;

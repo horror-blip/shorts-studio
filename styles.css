@@ -225,6 +225,26 @@ h1, h2, h3, p { margin-top: 0; }
 .draft-action:disabled { opacity: .45; cursor: not-allowed; }
 .format-note, .status { margin: 12px 0 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
 .status { min-height: 16px; color: #e1dcda; }
+.download-result { margin-top: 12px; padding: 12px; border: 1px solid var(--line); }
+.download-result[hidden] { display: none; }
+.download-link, .share-button {
+  min-height: 42px;
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--red);
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.share-button { width: 100%; margin-top: 8px; }
+.download-help { margin: 10px 0 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
 footer {
   min-height: 80px;
   margin-top: 55px;
